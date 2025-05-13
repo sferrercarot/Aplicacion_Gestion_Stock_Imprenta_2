@@ -38,9 +38,9 @@ class Retrofit2Helper(
 
     val client: OkHttpClient
         get() = OkHttpClient.Builder()
-            .connectTimeout(1900, TimeUnit.SECONDS)
-            .readTimeout(1900, TimeUnit.SECONDS)
-            .writeTimeout(1900, TimeUnit.SECONDS)
+            .connectTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
             .addInterceptor { chain ->
                 val original = chain.request()
                 val request = original.newBuilder()

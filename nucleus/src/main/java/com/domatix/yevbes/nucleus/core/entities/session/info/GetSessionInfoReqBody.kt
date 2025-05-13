@@ -4,7 +4,7 @@ import com.google.gson.JsonObject
 import com.google.gson.annotations.Expose
 import com.google.gson.annotations.SerializedName
 
-data class GetSessionInfoReqBody(
+data class  GetSessionInfoReqBody(
 
         @field:Expose
         @field:SerializedName("id")

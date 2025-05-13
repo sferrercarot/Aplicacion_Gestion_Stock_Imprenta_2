@@ -1,7 +1,6 @@
 package com.example.aplicaciongestionstockimprenta;
 
 import android.content.Context;
-import android.content.Intent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -12,63 +11,60 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.List;
 
-public class ProductsAdapter extends RecyclerView.Adapter<ProductsAdapter.VH> {
+public class ProductsAdapter extends RecyclerView.Adapter<ProductsAdapter.ProductViewHolder> {
 
-    private final List<Product> data;
+    public interface OnProductClickListener {
+        void onProductClick(Product producto);
+    }
+
     private final Context context;
+    private final List<Product> data;
     private final int uid;
     private final String password;
+    private final OnProductClickListener listener;
 
-    public ProductsAdapter(Context context, List<Product> data, int uid, String password) {
+    public ProductsAdapter(Context context, List<Product> data, int uid, String password, OnProductClickListener listener) {
         this.context = context;
         this.data = data;
         this.uid = uid;
         this.password = password;
+        this.listener = listener;
     }
 
     @NonNull
     @Override
-    public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View v = LayoutInflater.from(parent.getContext())
-                .inflate(R.layout.item_product, parent, false);
-        return new VH(v);
+    public ProductViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        View v = LayoutInflater.from(context).inflate(R.layout.item_product, parent, false);
+        return new ProductViewHolder(v);
     }
 
     @Override
-    public void onBindViewHolder(@NonNull VH holder, int position) {
+    public void onBindViewHolder(@NonNull ProductViewHolder holder, int position) {
         Product p = data.get(position);
+        if (p == null) return;
 
-        holder.tvName.setText(p.name);
-        holder.tvQty.setText("Stock: " + p.cantidad_stock);
+        holder.tvName.setText(p.getName());
+        holder.tvQty.setText("Stock: " + p.getCantidadStock());
 
-        if (p.stock_bajo) {
-            holder.tvWarning.setVisibility(View.VISIBLE);
+        if (p.isStockBajo()) {
             holder.tvWarning.setText("¡Stock por debajo del mínimo!");
+            holder.tvWarning.setVisibility(View.VISIBLE);
         } else {
             holder.tvWarning.setVisibility(View.GONE);
         }
 
-        // OnClick → abrir detalle
-        holder.itemView.setOnClickListener(v -> {
-            Intent intent = new Intent(context, ProductDetailActivity.class);
-            intent.putExtra("id", p.id);
-            intent.putExtra("name", p.name);
-            intent.putExtra("cantidad_stock", p.cantidad_stock);
-            intent.putExtra("uid", uid);
-            intent.putExtra("password", password);
-            context.startActivity(intent);
-        });
+        holder.itemView.setOnClickListener(v -> listener.onProductClick(p));
     }
 
     @Override
     public int getItemCount() {
-        return data.size();
+        return data != null ? data.size() : 0;
     }
 
-    static class VH extends RecyclerView.ViewHolder {
+    static class ProductViewHolder extends RecyclerView.ViewHolder {
         TextView tvName, tvQty, tvWarning;
 
-        VH(View v) {
+        ProductViewHolder(View v) {
             super(v);
             tvName = v.findViewById(R.id.tvName);
             tvQty = v.findViewById(R.id.tvQty);

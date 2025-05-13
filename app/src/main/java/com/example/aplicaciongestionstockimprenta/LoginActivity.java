@@ -11,19 +11,11 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.domatix.yevbes.nucleus.core.entities.session.authenticate.Authenticate;
-import com.domatix.yevbes.nucleus.core.entities.session.authenticate.AuthenticateParams;
-import com.domatix.yevbes.nucleus.core.entities.session.authenticate.AuthenticateReqBody;
+import com.google.gson.JsonObject;
 
-import java.util.concurrent.TimeUnit;
-
-import okhttp3.OkHttpClient;
-import okhttp3.logging.HttpLoggingInterceptor;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
-import retrofit2.Retrofit;
-import retrofit2.converter.gson.GsonConverterFactory;
 
 public class LoginActivity extends AppCompatActivity {
 
@@ -31,40 +23,23 @@ public class LoginActivity extends AppCompatActivity {
     private Button loginBtn;
     private ProgressBar progress;
     private OdooService service;
-    private final String BASE_URL = "http://50.85.209.163:8069/web/session/";
-    private final String DB_NAME  = "gestion_almacen";
+    private final String DB_NAME = "gestion_almacen";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
 
-        usuarioEt  = findViewById(R.id.emailLoginEditText);
+        SessionManager.init(getApplicationContext());
+        service = RetrofitClient.getOdooService();
+
+        usuarioEt = findViewById(R.id.emailLoginEditText);
         passwordEt = findViewById(R.id.passwordLoginEditText);
-        loginBtn   = findViewById(R.id.loginButton);
-        progress   = findViewById(R.id.progressBar);
-
-        // Interceptor de logging
-        HttpLoggingInterceptor logging = new HttpLoggingInterceptor(msg -> Log.d("HTTP", msg));
-        logging.setLevel(HttpLoggingInterceptor.Level.BODY);
-
-        // Cliente HTTP sin cookies
-        OkHttpClient client = new OkHttpClient.Builder()
-                .addInterceptor(logging)
-                .connectTimeout(1900, TimeUnit.SECONDS)
-                .readTimeout(1900, TimeUnit.SECONDS)
-                .build();
-
-        Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl(BASE_URL)
-                .client(client)
-                .addConverterFactory(GsonConverterFactory.create())
-                .build();
-
-        service = retrofit.create(OdooService.class);
+        loginBtn = findViewById(R.id.loginButton);
+        progress = findViewById(R.id.progressBar);
 
         loginBtn.setOnClickListener(view -> {
-            String usuario  = usuarioEt.getText().toString().trim();
+            String usuario = usuarioEt.getText().toString().trim();
             String password = passwordEt.getText().toString().trim();
 
             if (usuario.isEmpty() || password.isEmpty()) {
@@ -75,59 +50,93 @@ public class LoginActivity extends AppCompatActivity {
             progress.setVisibility(View.VISIBLE);
             loginBtn.setEnabled(false);
 
-            // Construye petición JSON-RPC
-            AuthenticateParams params = new AuthenticateParams(DB_NAME, usuario, password);
-            AuthenticateReqBody request = new AuthenticateReqBody();
-            request.setParams(params);
+            // Construye el cuerpo correcto para /web/session/authenticate
+            JsonObject loginRequest = new JsonObject();
+            loginRequest.addProperty("jsonrpc", "2.0");
+            JsonObject params = new JsonObject();
+            params.addProperty("db", DB_NAME);
+            params.addProperty("login", usuario);
+            params.addProperty("password", password);
+            loginRequest.add("params", params);
 
-            Log.d("LOGIN", "🔐 Enviando login por JSON-RPC: " + usuario);
-            service.login(request).enqueue(new Callback<Authenticate>() {
+            Log.d("LOGIN", "🔐 Enviando login a /web/session/authenticate");
+
+            service.login(loginRequest).enqueue(new Callback<JsonObject>() {
                 @Override
-                public void onResponse(Call<Authenticate> call, Response<Authenticate> resp) {
+                public void onResponse(Call<JsonObject> call, Response<JsonObject> resp) {
                     progress.setVisibility(View.GONE);
                     loginBtn.setEnabled(true);
 
-                    if (resp.isSuccessful() && resp.body() != null && resp.body().getResult() != null) {
-                        int uid = resp.body().getResult().getUid();
-
-                        // ⚠️ Validamos que uid sea válido (> 0)
-                        if (uid <= 0) {
-                            Log.e("LOGIN", "❌ Login fallido. UID inválido: " + uid);
-                            Toast.makeText(LoginActivity.this,
-                                    "Usuario o contraseña incorrectos",
-                                    Toast.LENGTH_SHORT).show();
+                    if (resp.isSuccessful() && resp.body() != null && resp.body().has("result")) {
+                        JsonObject result = resp.body().getAsJsonObject("result");
+                        if (!result.has("uid")) {
+                            Toast.makeText(LoginActivity.this, "Respuesta sin UID", Toast.LENGTH_SHORT).show();
                             return;
                         }
 
-                        Log.d("LOGIN", "✅ Login correcto. UID: " + uid);
+                        int uid = result.get("uid").getAsInt();
+                        Log.d("LOGIN", "✅ UID recibido: " + uid);
 
-                        // Salta directamente a MainActivity indicando rol "admin" por ahora
-                        Intent i = new Intent(LoginActivity.this, MainActivity.class);
-                        i.putExtra("uid",      uid);
-                        i.putExtra("usuario",  usuario);
-                        i.putExtra("password", password);
-                        i.putExtra("rol",      "admin");  // ← temporal
-                        startActivity(i);
-                        finish();
+                        if (uid <= 0) {
+                            Toast.makeText(LoginActivity.this, "Usuario o contraseña incorrectos", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+
+                        obtenerRolYContinuar(usuario, password);
 
                     } else {
-                        Log.e("LOGIN", "❌ Login fallido. HTTP: " + resp.code());
-                        Toast.makeText(LoginActivity.this,
-                                "Usuario o contraseña incorrectos",
-                                Toast.LENGTH_SHORT).show();
+                        Toast.makeText(LoginActivity.this, "Login incorrecto", Toast.LENGTH_SHORT).show();
                     }
                 }
 
                 @Override
-                public void onFailure(Call<Authenticate> call, Throwable t) {
+                public void onFailure(Call<JsonObject> call, Throwable t) {
                     progress.setVisibility(View.GONE);
                     loginBtn.setEnabled(true);
-                    Log.e("LOGIN", "❌ Error de red al hacer login", t);
-                    Toast.makeText(LoginActivity.this,
-                            "Error de red: " + t.getMessage(),
-                            Toast.LENGTH_SHORT).show();
+                    Log.e("LOGIN", "❗ Error de red en login", t);
+                    Toast.makeText(LoginActivity.this, "Error de red: " + t.getMessage(), Toast.LENGTH_SHORT).show();
                 }
             });
+        });
+    }
+
+    private void obtenerRolYContinuar(String login, String password) {
+        JsonObject body = new JsonObject();
+        body.addProperty("jsonrpc", "2.0");
+
+        Log.d("LOGIN", "🔐 Enviando login a /api/rol_usuario");
+
+        service.obtenerRol(body).enqueue(new Callback<RolWrapper>() {
+            @Override
+            public void onResponse(Call<RolWrapper> call, Response<RolWrapper> response) {
+                if (response.isSuccessful() && response.body() != null && response.body().result != null) {
+                    RolWrapper.RolResponse data = response.body().result;
+
+                    Log.d("LOGIN", "🧪 Rol recibido desde Odoo: " + data.rol);
+                    Log.d("LOGIN", "🧪 Usuario: " + data.usuario + " | UID: " + data.id);
+
+                    if (data.rol == null || data.rol.isEmpty()) {
+                        Toast.makeText(LoginActivity.this, "Rol vacío o inválido", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+
+                    Intent i = new Intent(LoginActivity.this, MainActivity.class);
+                    i.putExtra("uid", data.id);
+                    i.putExtra("usuario", data.usuario);
+                    i.putExtra("password", password);
+                    i.putExtra("rol", data.rol);
+                    startActivity(i);
+                    finish();
+                } else {
+                    Toast.makeText(LoginActivity.this, "Error al obtener el rol", Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void onFailure(Call<RolWrapper> call, Throwable t) {
+                Toast.makeText(LoginActivity.this, "Error de red al obtener rol", Toast.LENGTH_SHORT).show();
+                Log.e("LOGIN", "❗ Error al obtener rol", t);
+            }
         });
     }
 }
