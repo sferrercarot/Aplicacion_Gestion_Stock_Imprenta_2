@@ -6,6 +6,7 @@
     android:layout_height="match_parent"
     android:padding="24dp">
 
+    <!-- Nombre del producto -->
     <TextView
         android:id="@+id/tvProductName"
         android:layout_width="0dp"
@@ -13,39 +14,50 @@
         android:text="Nombre del producto"
         android:textSize="20sp"
         android:textStyle="bold"
+        android:layout_marginTop="80dp"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"/>
+        app:layout_constraintEnd_toEndOf="parent" />
 
+    <!-- Stock actual -->
     <TextView
         android:id="@+id/tvCurrentStock"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:text="Stock actual: 0"
-        android:layout_marginTop="16dp"
+        android:textSize="16sp"
+        android:layout_marginTop="12dp"
         app:layout_constraintTop_toBottomOf="@id/tvProductName"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"/>
+        app:layout_constraintEnd_toEndOf="parent" />
 
-    <EditText
-        android:id="@+id/etNewStock"
+    <!-- Campo para nuevo stock -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/stockInputLayout"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:inputType="number"
-        android:hint="Nuevo stock"
         android:layout_marginTop="24dp"
         app:layout_constraintTop_toBottomOf="@id/tvCurrentStock"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"/>
+        app:layout_constraintEnd_toEndOf="parent">
 
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/etNewStock"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Nuevo stock"
+            android:inputType="number"
+            android:minHeight="48dp"/>
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- Botón para actualizar stock -->
     <Button
         android:id="@+id/btnUpdateStock"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Actualizar stock"
-        android:layout_marginTop="32dp"
-        app:layout_constraintTop_toBottomOf="@id/etNewStock"
+        android:layout_marginTop="24dp"
+        app:layout_constraintTop_toBottomOf="@id/stockInputLayout"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
-
 </androidx.constraintlayout.widget.ConstraintLayout>

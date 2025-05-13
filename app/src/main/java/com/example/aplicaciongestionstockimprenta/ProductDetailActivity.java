@@ -1,8 +1,8 @@
 package com.example.aplicaciongestionstockimprenta;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
@@ -12,14 +12,9 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.gson.JsonObject;
 
-import java.util.concurrent.TimeUnit;
-
-import okhttp3.OkHttpClient;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
-import retrofit2.Retrofit;
-import retrofit2.converter.gson.GsonConverterFactory;
 
 public class ProductDetailActivity extends AppCompatActivity {
 
@@ -42,7 +37,7 @@ public class ProductDetailActivity extends AppCompatActivity {
         etNewStock = findViewById(R.id.etNewStock);
         btnUpdateStock = findViewById(R.id.btnUpdateStock);
 
-        // Recoger extras del intent
+        // Obtener datos del Intent
         productId = getIntent().getIntExtra("id", -1);
         productName = getIntent().getStringExtra("name");
         currentStock = getIntent().getIntExtra("cantidad_stock", 0);
@@ -58,19 +53,7 @@ public class ProductDetailActivity extends AppCompatActivity {
         tvProductName.setText(productName);
         tvCurrentStock.setText("Stock actual: " + currentStock);
 
-        // Inicializar Retrofit
-        OkHttpClient client = new OkHttpClient.Builder()
-                .connectTimeout(1900, TimeUnit.SECONDS)
-                .readTimeout(1900, TimeUnit.SECONDS)
-                .build();
-
-        Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl("http://50.85.209.163:8069/")
-                .client(client)
-                .addConverterFactory(GsonConverterFactory.create())
-                .build();
-
-        service = retrofit.create(OdooService.class);
+        service = RetrofitClient.getOdooService();
 
         btnUpdateStock.setOnClickListener(v -> {
             String newStockStr = etNewStock.getText().toString().trim();
@@ -92,32 +75,38 @@ public class ProductDetailActivity extends AppCompatActivity {
     }
 
     private void actualizarStockEnOdoo(int nuevoStock) {
-        JsonObject body = OdooRequestBuilder.buildWriteRequest(
-                "gestion_almacen", uid, password,
-                "gestion_almacen.producto",
-                productId,
-                "cantidad_stock",
-                nuevoStock
-        );
+        JsonObject params = new JsonObject();
+        params.addProperty("producto_id", productId);
+        params.addProperty("nueva_cantidad", nuevoStock);
 
-        Log.d("PRODUCT_DETAIL", "Actualizando stock: " + body.toString());
+        JsonObject body = new JsonObject();
+        body.add("params", params);
 
-        service.genericWrite(body).enqueue(new Callback<JsonObject>() {
+        Log.d("PRODUCT_DETAIL", "Actualizando stock con JSON: " + body.toString());
+
+        service.actualizarStock(body).enqueue(new Callback<ResultadoWrapper>() {
             @Override
-            public void onResponse(Call<JsonObject> call, Response<JsonObject> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    Log.d("PRODUCT_DETAIL", "Stock actualizado correctamente");
-                    Toast.makeText(ProductDetailActivity.this, "Stock actualizado", Toast.LENGTH_SHORT).show();
-                    finish(); // Opcional: cerrar y volver atrás
+            public void onResponse(Call<ResultadoWrapper> call, Response<ResultadoWrapper> response) {
+                if (response.isSuccessful() && response.body() != null && response.body().result != null) {
+                    String mensaje = response.body().result.resultado;
+                    Log.d("PRODUCT_DETAIL", "✅ Stock actualizado correctamente: " + mensaje);
+                    Toast.makeText(ProductDetailActivity.this, mensaje, Toast.LENGTH_SHORT).show();
+
+                    Intent resultIntent = new Intent();
+                    resultIntent.putExtra("id_actualizado", productId);
+                    resultIntent.putExtra("nuevo_stock", nuevoStock);
+                    setResult(RESULT_OK, resultIntent);
+                    finish();
+
                 } else {
-                    Log.e("PRODUCT_DETAIL", "Fallo al actualizar stock: " + response.code());
-                    Toast.makeText(ProductDetailActivity.this, "Error al actualizar", Toast.LENGTH_SHORT).show();
+                    Log.e("PRODUCT_DETAIL", "⚠️ Respuesta inesperada o incompleta");
+                    Toast.makeText(ProductDetailActivity.this, "Respuesta inesperada del servidor", Toast.LENGTH_SHORT).show();
                 }
             }
 
             @Override
-            public void onFailure(Call<JsonObject> call, Throwable t) {
-                Log.e("PRODUCT_DETAIL", "Error de red", t);
+            public void onFailure(Call<ResultadoWrapper> call, Throwable t) {
+                Log.e("PRODUCT_DETAIL", "❌ Error de red", t);
                 Toast.makeText(ProductDetailActivity.this, "Error de red", Toast.LENGTH_SHORT).show();
             }
         });
